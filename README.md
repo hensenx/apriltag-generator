@@ -1,22 +1,78 @@
 # AprilTag Generator
 
-A professional Python GUI application for generating AprilTag fiducial markers. AprilTags are used in computer vision for camera pose estimation, augmented reality, and robotics applications.
+A professional Python GUI application for generating AprilTag fiducial markers with DPI support and real-world sizing. AprilTags are widely used in computer vision for camera calibration, pose estimation, augmented reality, and robotics applications.
+
+![Examples](examples/rectangular_tag.png) ![Examples](examples/circular_tag.png)
+
+## What are AprilTags?
+
+AprilTags are 2D barcode-like markers designed for robust detection in computer vision applications. Each tag contains:
+- **Unique ID**: 587 different patterns (tag36h11 family)
+- **Binary pattern**: Black and white cells in a 10×10 grid
+- **White border**: For easy detection and pose estimation
+- **Orientation markers**: Corner patterns for rotation detection
 
 ## Features
 
 ### Core Functionality
 - **Single Tag Generation**: Create individual AprilTags with custom IDs (0-586)
 - **Batch Generation**: Generate multiple individual tag files at once
-- **Array Generation**: Create checkerboard-style arrays of multiple tags
+- **Array Generation**: Create calibration boards with multiple tags
 - **All 587 Official Tags**: Complete tag36h11 library from AprilRobotics
-- **Multiple Rendering Styles**: Rectangular and circular tag options
+- **Two Rendering Styles**: Rectangular and circular tag options
 
-### New in v2.0: DPI & SVG Support
-- **DPI-Based Sizing**: Specify physical dimensions (cm) + DPI for professional printing
-- **SVG Export**: Generate scalable vector graphics (infinitely scalable, 80% smaller than PNG)
-- **Format Selection**: Choose between PNG (raster) or SVG (vector) formats
+### Professional Sizing & Export
+- **Real-World Sizing**: Specify physical dimensions (cm) with DPI for accurate printing
+- **Two Size Modes**:
+  - **Pixels Mode**: Direct pixel dimensions with 300 DPI reference
+  - **Physical Mode**: Enter size in cm + DPI → calculates export pixels automatically
+- **Dual Format Export**:
+  - **SVG**: Scalable vector graphics (infinitely scalable, ~3-4 KB)
+  - **PNG**: Raster images with embedded DPI metadata for print-to-scale
 - **DPI Presets**: 72, 96, 150, 300, 600 DPI for different use cases
-- **Smart UI**: Dynamic size mode selector (pixels or physical + DPI)
+- **Live Preview**: See real-world dimensions (cm, inches, pixels) before exporting
+
+## Tag Types & Examples
+
+### Rectangular Tags (Standard)
+Most common format for computer vision applications.
+
+![Rectangular Tag](examples/rectangular_tag.png)
+
+**Best for:**
+- Camera calibration
+- Pose estimation
+- Standard AR applications
+
+### Circular Tags
+Smooth rounded edges for aesthetic applications.
+
+![Circular Tag](examples/circular_tag.png)
+
+**Best for:**
+- Decorative applications
+- When sharp corners aren't needed
+- Aesthetic AR experiences
+
+### 3×3 Tag Array
+Small grid for basic calibration.
+
+![3x3 Array](examples/array_3x3.png)
+
+**Best for:**
+- Quick camera tests
+- Small workspace calibration
+- Handheld calibration targets
+
+### Calibration Board (3×4)
+Standard calibration board layout.
+
+![Calibration Board](examples/calibration_board.png)
+
+**Best for:**
+- Camera calibration
+- Stereo vision setup
+- Multi-camera systems
 
 ### Customizable Settings
 - **Tag Size**: Pixels or physical dimensions (centimeters) + DPI
@@ -48,7 +104,7 @@ pip install numpy pillow
 
 ## Quick Start
 
-### GUI Usage
+### Launch the GUI
 
 **Windows:**
 ```bash
@@ -66,16 +122,53 @@ chmod +x run_apriltag_generator.sh
 python apriltag_generator.py
 ```
 
-### Command-Line Usage
+### Basic Workflow
 
-Generate a professional-quality SVG tag:
+1. **Choose Tab**: Single Tag, Batch, or Array
+2. **Set Size Mode**:
+   - **Pixels**: Direct pixel size (shows cm @ 300 DPI reference)
+   - **Physical (cm) + DPI**: Enter real-world size → auto-calculates pixels
+3. **Select Format**: PNG (raster) or SVG (vector)
+4. **Generate**: Click "Generate & Save" or "Generate All"
+
+### Real-World Size Display
+
+The GUI shows live calculations:
+- **Pixels Mode**: `400px = 14.11cm × 14.11cm (5.56" × 5.56") @ 300 DPI`
+- **Physical Mode**: `10cm × 10cm (3.94" × 3.94") @ 300 DPI = 1181px`
+
+This ensures you know exactly what physical size you'll get when printing!
+
+## Command-Line Usage (Advanced)
+
+Generate tags programmatically:
+
 ```python
-from apriltag_generator import generate_svg_tag
+from apriltag_generator import AprilTagGenerator, generate_svg_tag, calculate_pixels_from_physical
 
-# 10cm at 300 DPI (print quality)
-svg = generate_svg_tag(0, size_cm=10, dpi=300, style='rectangular')
-with open('apriltag.svg', 'w') as f:
-    f.write(svg)
+# Generate PNG with specific pixel size
+img = AprilTagGenerator.generate_tag(42, size=400, style='rectangular')
+img.save('tag42.png', dpi=(300, 300))
+
+# Generate SVG with physical dimensions
+svg_content = generate_svg_tag(42, size_cm=10, dpi=300, style='rectangular')
+with open('tag42.svg', 'w') as f:
+    f.write(svg_content)
+
+# Calculate pixels from physical size
+pixels = calculate_pixels_from_physical(10, dpi=300)  # 10cm at 300 DPI
+print(f"10cm at 300 DPI = {pixels} pixels")  # Output: 1181 pixels
+
+# Generate circular tag
+img_circular = AprilTagGenerator.generate_tag(100, size=500, style='circular')
+img_circular.save('tag100_circular.png')
+
+# Generate tag array
+tag_ids = list(range(0, 12))  # Tags 0-11
+array = AprilTagGenerator.generate_tag_array(
+    tag_ids, rows=3, cols=4, tag_size=100, spacing=20, style='rectangular'
+)
+array.save('calibration_board.png')
 ```
 
 ## Documentation
@@ -136,23 +229,72 @@ with open('apriltag.svg', 'w') as f:
 
 ## Example Workflows
 
-### Print Professional 10cm Tags
-1. Single Tag Tab → Size Mode: Physical (cm) + DPI
-2. Set Size: 10 cm, DPI: 300 (Print)
-3. Export Format: SVG (Vector)
-4. Generate & Save
+### 1. Print Professional 10cm Tags
 
-### Quick Web Batch
-1. Batch Tab → Start: 0, End: 99
-2. Size: 300 pixels
-3. Export Format: PNG (Raster)
-4. Generate All
+Perfect for camera calibration with known physical size.
 
-### Create Calibration Board
-1. Array Tab → Rows: 5, Cols: 5
-2. Tag Size: 150 pixels
-3. Export Format: PNG
-4. Generate & Save
+```
+Single Tag Tab
+├─ Size Mode: Physical (cm) + DPI
+├─ Size: 10 cm
+├─ DPI: 300 (Print)
+├─ Style: Rectangular
+├─ Format: SVG (Vector)
+└─ Click "Generate & Save"
+```
+
+**Result**: 10cm × 10cm tag, print-to-scale ready (no scaling in print dialog!)
+
+### 2. Quick Web Batch
+
+Generate 100 tags for web use.
+
+```
+Batch Tab
+├─ Start ID: 0
+├─ End ID: 99
+├─ Size: 300 pixels
+├─ Style: Rectangular
+├─ Format: PNG (Raster)
+└─ Click "Generate All"
+```
+
+**Result**: 100 individual PNG files (apriltag_0.png to apriltag_99.png)
+
+### 3. Camera Calibration Board
+
+Create a professional 5×5 calibration board.
+
+```
+Array Tab
+├─ Start ID: 0
+├─ Rows: 5
+├─ Columns: 5
+├─ Tag Size: 150 pixels
+├─ Spacing: 30 pixels
+├─ Style: Rectangular
+├─ Format: PNG
+└─ Click "Generate & Save"
+```
+
+**Result**: Single PNG with 25 tags in a grid layout
+
+### 4. Large Format Print Board
+
+Create a board with known physical spacing.
+
+```
+Array Tab
+├─ Size Mode: Physical (cm) + DPI
+├─ Tag Size: 5 cm
+├─ DPI: 300
+├─ Rows: 4
+├─ Columns: 6
+├─ Spacing: 20 pixels (0.17cm @ 300 DPI)
+└─ Format: PNG
+```
+
+Real-world display shows: "Grid: 32.5cm × 22.2cm (4×6)"
 
 ## Testing
 
