@@ -36,44 +36,52 @@ AprilTags are 2D barcode-like markers designed for robust detection in computer 
 ## Tag Types & Examples
 
 ### Rectangular Tags (Standard)
-Most common format for computer vision applications.
+Most common format for computer vision applications. All tags use official AprilRobotics patterns.
 
 ![Rectangular Tag](examples/rectangular_tag.png)
+*Tag ID 0 - 300×300px with border*
 
 **Best for:**
 - Camera calibration
 - Pose estimation
 - Standard AR applications
+- Guaranteed detection with all AprilTag libraries
 
 ### Circular Tags
-Smooth rounded edges for aesthetic applications.
+Smooth rounded edges for aesthetic applications. Official pattern with circular masking.
 
 ![Circular Tag](examples/circular_tag.png)
+*Tag ID 42 - 300×300px circular style*
 
 **Best for:**
 - Decorative applications
 - When sharp corners aren't needed
 - Aesthetic AR experiences
+- Same detection reliability as rectangular
 
 ### 3×3 Tag Array
-Small grid for basic calibration.
+Small grid for basic calibration. Tags 0-8 with ID labels.
 
 ![3x3 Array](examples/array_3x3.png)
+*3×3 array with 120px tags, 20px spacing*
 
 **Best for:**
 - Quick camera tests
 - Small workspace calibration
 - Handheld calibration targets
+- Testing multiple tag detection
 
 ### Calibration Board (3×4)
-Standard calibration board layout.
+Standard calibration board layout. Tags 0-11 with ID labels.
 
 ![Calibration Board](examples/calibration_board.png)
+*3×4 calibration board with 120px tags, 20px spacing*
 
 **Best for:**
-- Camera calibration
+- Professional camera calibration
 - Stereo vision setup
 - Multi-camera systems
+- Accurate pose estimation
 
 ### Customizable Settings
 - **Tag Size**: Pixels or physical dimensions (centimeters) + DPI
