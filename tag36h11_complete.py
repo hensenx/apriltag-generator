@@ -140,10 +140,14 @@ class Tag36h11:
     
     CODES = TAG36H11_CODES
     
+    # Official bit positions from AprilRobotics C implementation
+    BIT_X = [1, 2, 3, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 5, 4, 6, 5, 4, 3, 2, 5, 4, 3, 4, 1, 1, 1, 1, 1, 2, 2, 2, 3]
+    BIT_Y = [1, 1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 6, 4, 5, 2, 3, 4, 3, 6, 5, 6, 6, 6, 5, 5, 5, 4, 6, 5, 4, 3, 2, 5, 4, 3, 4]
+    
     @staticmethod
     def code_to_pattern(code: int) -> np.ndarray:
         """
-        Convert a 36-bit code to a 10x10 tag pattern.
+        Convert a 36-bit code to a 10x10 tag pattern using official AprilTag layout.
         
         Args:
             code: 36-bit integer code
@@ -151,21 +155,23 @@ class Tag36h11:
         Returns:
             10x10 numpy array where 1=black, 0=white
         """
-        # Create 10x10 pattern with outer black border
+        # Create 10x10 pattern - start with all white
         pattern = np.zeros((10, 10), dtype=int)
         
-        # Outer border is always black (1)
-        pattern[0, :] = 1  # Top border
-        pattern[9, :] = 1  # Bottom border
-        pattern[:, 0] = 1  # Left border
-        pattern[:, 9] = 1  # Right border
+        # Inner black border (row/col 0 and 7 of the 8x8 region, which is indices 1 and 8 in 10x10)
+        # But corners stay white
+        pattern[1, 1:9] = 1  # Top border
+        pattern[8, 1:9] = 1  # Bottom border
+        pattern[1:9, 1] = 1  # Left border
+        pattern[1:9, 8] = 1  # Right border
         
-        # Inner 8x8 region: extract 36 bits from code
-        # Bits are stored LSB-first, filling left-to-right, top-to-bottom
+        # Extract 36 data bits and place them using official bit positions
+        # BIT_X and BIT_Y are 1-indexed in range [1, 6]
+        # They map DIRECTLY to 10x10 pattern indices [1, 6] (no offset needed)
         for i in range(36):
-            row = 1 + (i // 8)      # Rows 1-8
-            col = 1 + (i % 8)       # Cols 1-8
             bit = (code >> i) & 1
+            row = Tag36h11.BIT_Y[i]  # Direct mapping
+            col = Tag36h11.BIT_X[i]  # Direct mapping
             pattern[row, col] = bit
         
         return pattern

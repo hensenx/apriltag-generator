@@ -493,44 +493,82 @@ class AprilTagGUI:
         self.batch_end.set(9)
         self.batch_end.grid(row=1, column=1, sticky='ew', pady=5)
         
-        # Size
-        ttk.Label(frame, text="Size (pixels):").grid(row=2, column=0, sticky='w', pady=5)
-        self.batch_size = ttk.Spinbox(frame, from_=100, to=1000, increment=50, width=20)
-        self.batch_size.set(400)
-        self.batch_size.grid(row=2, column=1, sticky='ew', pady=5)
+        # Size mode selector
+        ttk.Label(frame, text="Size Mode:").grid(row=2, column=0, sticky='w', pady=5)
+        self.batch_size_mode = ttk.Combobox(frame, values=['Pixels', 'Physical (cm) + DPI'], 
+                                           state='readonly', width=17)
+        self.batch_size_mode.set('Pixels')
+        self.batch_size_mode.grid(row=2, column=1, sticky='ew', pady=5)
+        self.batch_size_mode.bind('<<ComboboxSelected>>', self._on_batch_size_mode_changed)
+        
+        # Size (pixels) - default visible
+        self.batch_size_pixels_label = ttk.Label(frame, text="Size (pixels):")
+        self.batch_size_pixels_label.grid(row=3, column=0, sticky='w', pady=5)
+        self.batch_size_pixels = ttk.Spinbox(frame, from_=100, to=1000, increment=50, width=20)
+        self.batch_size_pixels.set(400)
+        self.batch_size_pixels.grid(row=3, column=1, sticky='ew', pady=5)
+        self.batch_size_pixels.bind('<KeyRelease>', self._update_batch_display)
+        
+        # Size (cm) - initially hidden
+        self.batch_size_cm_label = ttk.Label(frame, text="Size (cm):")
+        self.batch_size_cm = ttk.Spinbox(frame, from_=1, to=100, increment=1, width=20, format="%.1f")
+        self.batch_size_cm.set(10.0)
+        self.batch_size_cm.bind('<KeyRelease>', self._update_batch_display)
+        # Grid then hide (to preserve grid info)
+        self.batch_size_cm_label.grid(row=3, column=0, sticky='w', pady=5)
+        self.batch_size_cm.grid(row=3, column=1, sticky='ew', pady=5)
+        self.batch_size_cm_label.grid_remove()
+        self.batch_size_cm.grid_remove()
+        
+        # DPI selector - initially hidden
+        self.batch_dpi_label = ttk.Label(frame, text="DPI:")
+        self.batch_dpi = ttk.Combobox(frame, values=['72 DPI (Screen)', '96 DPI (Web)', '150 DPI (Photo)', 
+                                                     '300 DPI (Print)', '600 DPI (High-Res)'], 
+                                     state='readonly', width=17)
+        self.batch_dpi.set('300 DPI (Print)')
+        self.batch_dpi.bind('<<ComboboxSelected>>', self._update_batch_display)
+        # Grid then hide
+        self.batch_dpi_label.grid(row=4, column=0, sticky='w', pady=5)
+        self.batch_dpi.grid(row=4, column=1, sticky='ew', pady=5)
+        self.batch_dpi_label.grid_remove()
+        self.batch_dpi.grid_remove()
         
         # Style
-        ttk.Label(frame, text="Style:").grid(row=3, column=0, sticky='w', pady=5)
+        self.batch_style_label = ttk.Label(frame, text="Style:")
+        self.batch_style_label.grid(row=4, column=0, sticky='w', pady=5)
         self.batch_style = ttk.Combobox(frame, values=['rectangular', 'circular'], 
                                        state='readonly', width=17)
         self.batch_style.set('rectangular')
-        self.batch_style.grid(row=3, column=1, sticky='ew', pady=5)
+        self.batch_style.grid(row=4, column=1, sticky='ew', pady=5)
         
         # Export format
-        ttk.Label(frame, text="Export Format:").grid(row=4, column=0, sticky='w', pady=5)
+        self.batch_format_label = ttk.Label(frame, text="Export Format:")
+        self.batch_format_label.grid(row=5, column=0, sticky='w', pady=5)
         self.batch_format = ttk.Combobox(frame, values=['PNG (Raster)', 'SVG (Vector)'], 
                                         state='readonly', width=17)
         self.batch_format.set('PNG (Raster)')
-        self.batch_format.grid(row=4, column=1, sticky='ew', pady=5)
+        self.batch_format.grid(row=5, column=1, sticky='ew', pady=5)
         
         # Output directory
-        ttk.Label(frame, text="Output Dir:").grid(row=5, column=0, sticky='w', pady=5)
-        dir_frame = ttk.Frame(frame)
-        dir_frame.grid(row=5, column=1, sticky='ew', pady=5)
+        self.batch_dir_label = ttk.Label(frame, text="Output Dir:")
+        self.batch_dir_label.grid(row=6, column=0, sticky='w', pady=5)
+        self.batch_dir_frame = ttk.Frame(frame)
+        self.batch_dir_frame.grid(row=6, column=1, sticky='ew', pady=5)
         self.batch_dir = tk.StringVar(value=os.getcwd())
-        ttk.Entry(dir_frame, textvariable=self.batch_dir).pack(side='left', fill='x', expand=True)
-        ttk.Button(dir_frame, text="Browse...", command=self.browse_dir).pack(side='left', padx=(5, 0))
+        ttk.Entry(self.batch_dir_frame, textvariable=self.batch_dir).pack(side='left', fill='x', expand=True)
+        ttk.Button(self.batch_dir_frame, text="Browse...", command=self.browse_dir).pack(side='left', padx=(5, 0))
         
         # Real-world size display
-        ttk.Label(frame, text="Real-world Size:").grid(row=6, column=0, sticky='w', pady=5)
+        self.batch_size_display_label = ttk.Label(frame, text="Real-world Size:")
+        self.batch_size_display_label.grid(row=7, column=0, sticky='w', pady=5)
         self.batch_size_display = ttk.Label(frame, text="400 px per tag", 
                                             foreground='blue', font=('TkDefaultFont', 10, 'bold'))
-        self.batch_size_display.grid(row=6, column=1, sticky='w', pady=5)
+        self.batch_size_display.grid(row=7, column=1, sticky='w', pady=5)
         
         frame.columnconfigure(1, weight=1)
         
-        # Bind event to update size display
-        self.batch_size.bind('<KeyRelease>', self.update_batch_size_display)
+        # Initialize display
+        self._update_batch_display()
         
         # Progress
         self.batch_progress = ttk.Progressbar(self.batch_tab, mode='determinate')
@@ -547,17 +585,78 @@ class AprilTagGUI:
                         justify='left', wraplength=600)
         info.pack(padx=10, pady=10)
     
-    def update_batch_size_display(self, event=None):
-        """Update batch size display"""
+    def _on_batch_size_mode_changed(self, event=None):
+        """Handle batch size mode change - toggle UI elements and update display"""
+        mode = self.batch_size_mode.get()
+        
+        if mode == 'Physical (cm) + DPI':
+            # Switch to physical mode: hide pixels, show cm + DPI
+            self.batch_size_pixels_label.grid_remove()
+            self.batch_size_pixels.grid_remove()
+            self.batch_size_cm_label.grid(row=3, column=0, sticky='w', pady=5)
+            self.batch_size_cm.grid(row=3, column=1, sticky='ew', pady=5)
+            self.batch_dpi_label.grid(row=4, column=0, sticky='w', pady=5)
+            self.batch_dpi.grid(row=4, column=1, sticky='ew', pady=5)
+            
+            # Adjust other rows
+            self.batch_style_label.grid(row=5, column=0, sticky='w', pady=5)
+            self.batch_style.grid(row=5, column=1, sticky='ew', pady=5)
+            self.batch_format_label.grid(row=6, column=0, sticky='w', pady=5)
+            self.batch_format.grid(row=6, column=1, sticky='ew', pady=5)
+            self.batch_dir_label.grid(row=7, column=0, sticky='w', pady=5)
+            self.batch_dir_frame.grid(row=7, column=1, sticky='ew', pady=5)
+            self.batch_size_display_label.grid(row=8, column=0, sticky='w', pady=5)
+            self.batch_size_display.grid(row=8, column=1, sticky='w', pady=5)
+        else:
+            # Switch to pixel mode: show pixels, hide cm + DPI
+            self.batch_size_cm_label.grid_remove()
+            self.batch_size_cm.grid_remove()
+            self.batch_dpi_label.grid_remove()
+            self.batch_dpi.grid_remove()
+            self.batch_size_pixels_label.grid(row=3, column=0, sticky='w', pady=5)
+            self.batch_size_pixels.grid(row=3, column=1, sticky='ew', pady=5)
+            
+            # Adjust other rows back
+            self.batch_style_label.grid(row=4, column=0, sticky='w', pady=5)
+            self.batch_style.grid(row=4, column=1, sticky='ew', pady=5)
+            self.batch_format_label.grid(row=5, column=0, sticky='w', pady=5)
+            self.batch_format.grid(row=5, column=1, sticky='ew', pady=5)
+            self.batch_dir_label.grid(row=6, column=0, sticky='w', pady=5)
+            self.batch_dir_frame.grid(row=6, column=1, sticky='ew', pady=5)
+            self.batch_size_display_label.grid(row=7, column=0, sticky='w', pady=5)
+            self.batch_size_display.grid(row=7, column=1, sticky='w', pady=5)
+        
+        self._update_batch_display()
+    
+    def _update_batch_display(self, event=None):
+        """Update batch size display based on current mode and values"""
         try:
-            size_px = int(self.batch_size.get())
-            size_cm = pixels_to_physical(size_px, dpi=72)
-            inches = size_cm / 2.54
-            self.batch_size_display.config(
-                text=f"{size_px}px per tag = {size_cm:.2f} cm × {size_cm:.2f} cm ({inches:.2f}\" × {inches:.2f}\") @ 72 DPI"
-            )
-        except ValueError:
+            mode = self.batch_size_mode.get()
+            
+            if mode == 'Physical (cm) + DPI':
+                # Physical mode: show cm, inches, DPI, and calculated export pixels
+                size_cm = float(self.batch_size_cm.get())
+                dpi_str = self.batch_dpi.get().split()[0]
+                dpi = int(dpi_str)
+                size_px = calculate_pixels_from_physical(size_cm, dpi)
+                inches = size_cm / 2.54
+                self.batch_size_display.config(
+                    text=f"{size_cm:.1f}cm × {size_cm:.1f}cm ({inches:.2f}\" × {inches:.2f}\") @ {dpi} DPI = {size_px}px per tag"
+                )
+            else:
+                # Pixel mode: show pixels and convert to cm at 300 DPI reference
+                size_px = int(self.batch_size_pixels.get())
+                size_cm = pixels_to_physical(size_px, dpi=300)
+                inches = size_cm / 2.54
+                self.batch_size_display.config(
+                    text=f"{size_px}px per tag = {size_cm:.2f}cm × {size_cm:.2f}cm ({inches:.2f}\" × {inches:.2f}\") @ 300 DPI"
+                )
+        except (ValueError, IndexError):
             pass
+    
+    def update_batch_size_display(self, event=None):
+        """Legacy method - redirects to new _update_batch_display"""
+        self._update_batch_display(event)
     
     def setup_array_tab(self):
         """Setup array generation tab"""
@@ -737,10 +836,21 @@ class AprilTagGUI:
         try:
             start = int(self.batch_start.get())
             end = int(self.batch_end.get())
-            size = int(self.batch_size.get())
             style = self.batch_style.get()
             format_type = self.batch_format.get()
             out_dir = self.batch_dir.get()
+            
+            # Get size based on mode
+            mode = self.batch_size_mode.get()
+            if mode == 'Physical (cm) + DPI':
+                size_cm = float(self.batch_size_cm.get())
+                dpi_str = self.batch_dpi.get().split()[0]
+                dpi = int(dpi_str)
+                size = calculate_pixels_from_physical(size_cm, dpi)
+            else:
+                size = int(self.batch_size_pixels.get())
+                dpi = 300  # Default DPI for pixel mode
+                size_cm = pixels_to_physical(size, dpi)
             
             if start > end:
                 messagebox.showerror("Error", "Start ID > End ID")
@@ -754,7 +864,6 @@ class AprilTagGUI:
             self.batch_progress['value'] = 0
             
             ext = '.svg' if 'SVG' in format_type else '.png'
-            size_cm = pixels_to_physical(size, 72)
             
             for i, tag_id in enumerate(range(start, end + 1)):
                 self.batch_status.config(text=f"Generating {i+1}/{total}")
@@ -762,12 +871,11 @@ class AprilTagGUI:
                 
                 if format_type == 'PNG (Raster)':
                     img = AprilTagGenerator.generate_tag(tag_id, size, style)
-                    img.save(os.path.join(out_dir, f"apriltag_{tag_id}.png"))
+                    img.save(os.path.join(out_dir, f"apriltag_{tag_id}.png"), dpi=(dpi, dpi))
                 else:  # SVG
-                    size_cm_svg = size / 2.54 / 72
-                    svg_content = generate_svg_tag(tag_id, size_cm_svg, 72, style)
+                    svg_content = generate_svg_tag(tag_id, size_cm, dpi, style)
                     # Add DPI info to SVG
-                    svg_with_info = f"<!-- {size_cm_svg:.2f}cm @ 72 DPI -->\n" + svg_content
+                    svg_with_info = f"<!-- {size_cm:.2f}cm @ {dpi} DPI -->\n" + svg_content
                     with open(os.path.join(out_dir, f"apriltag_{tag_id}.svg"), 'w') as f:
                         f.write(svg_with_info)
                 
@@ -775,7 +883,7 @@ class AprilTagGUI:
             
             self.batch_status.config(text=f"Complete: {total} tags")
             inches = size_cm / 2.54
-            messagebox.showinfo("Success", f"Generated {total} tags ({format_type})\n\nTag Size: {size_cm:.2f}cm × {size_cm:.2f}cm ({inches:.2f}\" × {inches:.2f}\") each\n\nFiles are ready to print to scale.")
+            messagebox.showinfo("Success", f"Generated {total} tags ({format_type})\n\nTag Size: {size_cm:.2f}cm × {size_cm:.2f}cm ({inches:.2f}\" × {inches:.2f}\") each @ {dpi} DPI\n\nFiles are ready to print to scale.")
         except Exception as e:
             messagebox.showerror("Error", str(e))
     
