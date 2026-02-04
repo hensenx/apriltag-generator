@@ -1,123 +1,54 @@
 """
-AprilTag Generator Application
-A GUI application for generating single AprilTags or arrays of AprilTags.
+AprilTag Generator - Production Ready
+A GUI application for generating AprilTags with rectangular or circular styles.
+Uses official tag36h11 codes from AprilRobotics repository (all 587 codes).
+
+Supports:
+- Rectangular AprilTags (standard square format)
+- Circular AprilTags (with smooth rounded edges)
+- Single tag generation
+- Batch generation
+- Array/grid layouts
+- DPI-based sizing (cm/inches + DPI = pixels)
+- PNG and SVG export formats
 """
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
-import cv2
+from PIL import Image, ImageDraw
 import os
+from pathlib import Path
+from tag36h11_complete import Tag36h11
 
 
 class AprilTagGenerator:
-    """Generates AprilTag images"""
-    
-    # AprilTag family patterns (tag36h11 family - simplified subset)
-    TAG36H11_PATTERNS = {
-        0: np.array([
-            [1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,0,1],
-            [1,0,1,1,1,0,0,1],
-            [1,0,1,0,1,0,0,1],
-            [1,0,1,1,0,0,0,1],
-            [1,0,0,0,0,0,0,1],
-            [1,0,0,0,0,0,0,1],
-            [1,1,1,1,1,1,1,1]
-        ]),
-        1: np.array([
-            [1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,0,1],
-            [1,0,1,1,1,0,0,1],
-            [1,0,1,0,1,0,0,1],
-            [1,0,1,1,1,0,0,1],
-            [1,0,0,0,1,0,0,1],
-            [1,0,0,0,0,0,0,1],
-            [1,1,1,1,1,1,1,1]
-        ]),
-        2: np.array([
-            [1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,0,1],
-            [1,0,1,1,1,1,0,1],
-            [1,0,0,0,0,1,0,1],
-            [1,0,1,1,1,1,0,1],
-            [1,0,1,0,0,0,0,1],
-            [1,0,1,1,1,1,0,1],
-            [1,1,1,1,1,1,1,1]
-        ]),
-        3: np.array([
-            [1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,0,1],
-            [1,0,1,1,1,1,0,1],
-            [1,0,0,0,0,1,0,1],
-            [1,0,1,1,1,1,0,1],
-            [1,0,0,0,0,1,0,1],
-            [1,0,1,1,1,1,0,1],
-            [1,1,1,1,1,1,1,1]
-        ]),
-        4: np.array([
-            [1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,0,1],
-            [1,0,1,0,0,1,0,1],
-            [1,0,1,0,0,1,0,1],
-            [1,0,1,1,1,1,0,1],
-            [1,0,0,0,0,1,0,1],
-            [1,0,0,0,0,1,0,1],
-            [1,1,1,1,1,1,1,1]
-        ]),
-        5: np.array([
-            [1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,0,1],
-            [1,0,1,1,1,1,0,1],
-            [1,0,1,0,0,0,0,1],
-            [1,0,1,1,1,1,0,1],
-            [1,0,0,0,0,1,0,1],
-            [1,0,1,1,1,1,0,1],
-            [1,1,1,1,1,1,1,1]
-        ]),
-    }
+    """Generates AprilTag images using official tag36h11 codes"""
     
     @staticmethod
-    def generate_tag(tag_id, size=200, border=1):
+    def _render_pattern_rectangular(pattern, size):
         """
-        Generate a single AprilTag
+        Render a tag pattern as rectangular image.
         
         Args:
-            tag_id: ID of the tag to generate
-            size: Size of the tag in pixels
-            border: Border size in units (1 = one cell width)
-        
+            pattern: 10x10 numpy array (1=black, 0=white)
+            size: Output image size in pixels
+            
         Returns:
-            PIL Image object
+            PIL Image (grayscale)
         """
-        # Get pattern or use modulo to wrap around
-        pattern_id = tag_id % len(AprilTagGenerator.TAG36H11_PATTERNS)
-        pattern = AprilTagGenerator.TAG36H11_PATTERNS[pattern_id].copy()
-        
-        # Modify pattern slightly based on tag_id to create variations
-        if tag_id >= len(AprilTagGenerator.TAG36H11_PATTERNS):
-            variations = tag_id // len(AprilTagGenerator.TAG36H11_PATTERNS)
-            # Flip some internal bits (not border) based on variation
-            if variations % 2 == 1:
-                pattern[2:6, 2:6] = 1 - pattern[2:6, 2:6]
-        
-        # Calculate cell size
         pattern_size = pattern.shape[0]
-        total_size = pattern_size + (2 * border)
-        cell_size = size // total_size
+        cell_size = size // pattern_size
+        img_size = cell_size * pattern_size
         
-        # Create image with border
-        img_size = cell_size * total_size
         img = Image.new('L', (img_size, img_size), 255)
         draw = ImageDraw.Draw(img)
         
-        # Draw the pattern
         for i in range(pattern_size):
             for j in range(pattern_size):
-                if pattern[i, j] == 1:
-                    x0 = (j + border) * cell_size
-                    y0 = (i + border) * cell_size
+                if pattern[i, j] == 1:  # 1 in official pattern = black pixel
+                    x0 = j * cell_size
+                    y0 = i * cell_size
                     x1 = x0 + cell_size
                     y1 = y0 + cell_size
                     draw.rectangle([x0, y0, x1, y1], fill=0)
@@ -125,10 +56,81 @@ class AprilTagGenerator:
         return img
     
     @staticmethod
-    def generate_tag_array(tag_ids, rows, cols, tag_size=200, spacing=50, 
-                          border=1, add_labels=True):
+    def _render_pattern_circular(pattern, size):
         """
-        Generate an array of AprilTags (checkerboard style)
+        Render a tag pattern as circular image (no alpha - rendered on white background).
+        
+        Args:
+            pattern: 10x10 numpy array (1=black, 0=white)
+            size: Output image size in pixels
+            
+        Returns:
+            PIL Image (grayscale, no alpha)
+        """
+        # Create image with padding for circle
+        img = Image.new('L', (size, size), 255)
+        draw = ImageDraw.Draw(img)
+        
+        # Circle parameters
+        margin = 2
+        pattern_size = pattern.shape[0]
+        cell_size = (size - 2 * margin) / pattern_size
+        center_x = size / 2
+        center_y = size / 2
+        radius = (size - 2 * margin) / 2
+        
+        # Render each cell in circular region
+        for i in range(pattern_size):
+            for j in range(pattern_size):
+                if pattern[i, j] == 1:  # Black pixel
+                    # Calculate cell center
+                    cell_x = margin + (j + 0.5) * cell_size
+                    cell_y = margin + (i + 0.5) * cell_size
+                    
+                    # Check if cell is within circle
+                    dist = np.sqrt((cell_x - center_x)**2 + (cell_y - center_y)**2)
+                    if dist <= radius:
+                        # Draw black rectangle for this cell
+                        x0 = int(margin + j * cell_size)
+                        y0 = int(margin + i * cell_size)
+                        x1 = int(x0 + cell_size)
+                        y1 = int(y0 + cell_size)
+                        draw.rectangle([x0, y0, x1, y1], fill=0)
+        
+        return img
+    
+    @staticmethod
+    def generate_tag(tag_id, size=200, style='rectangular', circle_x=None):
+        """
+        Generate a single AprilTag using official tag36h11 code.
+        
+        Args:
+            tag_id: ID of the tag to generate (0-586)
+            size: Size of the tag in pixels
+            style: 'rectangular' or 'circular'
+            circle_x: X coordinate for circular mask (alternative parameter)
+            
+        Returns:
+            PIL Image object
+        """
+        # Support circle_x parameter as alias for circular style
+        if circle_x is not None:
+            style = 'circular'
+        
+        # Get official pattern
+        pattern = Tag36h11.generate_tag_pattern(tag_id)
+        
+        # Render based on style
+        if style == 'circular':
+            return AprilTagGenerator._render_pattern_circular(pattern, size)
+        else:
+            return AprilTagGenerator._render_pattern_rectangular(pattern, size)
+    
+    @staticmethod
+    def generate_tag_array(tag_ids, rows, cols, tag_size=200, spacing=50, 
+                          style='rectangular', add_labels=True):
+        """
+        Generate an array of AprilTags in a grid layout.
         
         Args:
             tag_ids: List of tag IDs or starting ID
@@ -136,13 +138,13 @@ class AprilTagGenerator:
             cols: Number of columns
             tag_size: Size of each tag in pixels
             spacing: Spacing between tags in pixels
-            border: Border size for each tag
+            style: 'rectangular' or 'circular'
             add_labels: Whether to add ID labels below each tag
-        
+            
         Returns:
             PIL Image object
         """
-        # Generate list of tag IDs if only starting ID provided
+        # Convert starting ID to list
         if isinstance(tag_ids, int):
             tag_ids = list(range(tag_ids, tag_ids + rows * cols))
         
@@ -155,13 +157,6 @@ class AprilTagGenerator:
         
         # Create canvas
         canvas = Image.new('RGB', (canvas_width, canvas_height), 'white')
-        draw = ImageDraw.Draw(canvas)
-        
-        # Try to load a font for labels
-        try:
-            font = ImageFont.truetype("arial.ttf", 20)
-        except:
-            font = ImageFont.load_default()
         
         # Place tags
         idx = 0
@@ -171,7 +166,17 @@ class AprilTagGenerator:
                     tag_id = tag_ids[idx]
                     
                     # Generate tag
-                    tag = AprilTagGenerator.generate_tag(tag_id, tag_size, border)
+                    tag = AprilTagGenerator.generate_tag(
+                        tag_id, tag_size, style=style
+                    )
+                    
+                    # Convert to RGB if needed
+                    if tag.mode == 'RGBA':
+                        tag_rgb = Image.new('RGB', tag.size, 'white')
+                        tag_rgb.paste(tag, mask=tag.split()[3])
+                        tag = tag_rgb
+                    elif tag.mode == 'L':
+                        tag = tag.convert('RGB')
                     
                     # Calculate position
                     x = spacing + col * (tag_size + spacing)
@@ -180,34 +185,128 @@ class AprilTagGenerator:
                     # Paste tag
                     canvas.paste(tag, (x, y))
                     
-                    # Add label
+                    # Add label if requested
                     if add_labels:
+                        draw = ImageDraw.Draw(canvas)
                         label = f"ID: {tag_id}"
-                        # Get text size
-                        bbox = draw.textbbox((0, 0), label, font=font)
-                        text_width = bbox[2] - bbox[0]
-                        text_x = x + (tag_size - text_width) // 2
-                        text_y = y + tag_size + 5
-                        draw.text((text_x, text_y), label, fill='black', font=font)
+                        label_y = y + tag_size + 5
+                        draw.text((x + 5, label_y), label, fill='black')
                     
                     idx += 1
         
         return canvas
 
 
+# Helper functions for DPI and SVG support
+def calculate_pixels_from_physical(size_cm, dpi=72):
+    """
+    Convert physical size (cm) to pixels based on DPI.
+    
+    Args:
+        size_cm: Size in centimeters
+        dpi: Dots per inch (default 72)
+    
+    Returns:
+        Size in pixels (integer)
+    """
+    inches = size_cm / 2.54
+    pixels = int(inches * dpi)
+    return pixels
+
+
+def pixels_to_physical(pixels, dpi=72):
+    """
+    Convert pixels to physical size (cm) based on DPI.
+    
+    Args:
+        pixels: Size in pixels
+        dpi: Dots per inch (default 72)
+    
+    Returns:
+        Size in centimeters (float)
+    """
+    inches = pixels / dpi
+    cm = inches * 2.54
+    return cm
+
+
+def generate_svg_tag(tag_id, size_cm=10, dpi=300, style='rectangular'):
+    """
+    Generate SVG (vector) AprilTag.
+    
+    Args:
+        tag_id: Tag ID (0-586)
+        size_cm: Size in centimeters
+        dpi: Dots per inch
+        style: 'rectangular' or 'circular'
+    
+    Returns:
+        SVG string
+    """
+    from tag36h11_complete import Tag36h11
+    
+    # Convert size
+    size_pixels = calculate_pixels_from_physical(size_cm, dpi)
+    
+    # Get pattern
+    pattern = Tag36h11.generate_tag_pattern(tag_id)
+    pattern_size = pattern.shape[0]
+    cell_size = size_pixels / pattern_size
+    
+    # Start SVG
+    svg_lines = [
+        f'<svg width="{size_pixels}px" height="{size_pixels}px" viewBox="0 0 {size_pixels} {size_pixels}" xmlns="http://www.w3.org/2000/svg">',
+        f'  <rect width="{size_pixels}" height="{size_pixels}" fill="white"/>'
+    ]
+    
+    if style == 'circular':
+        # Add circle background
+        svg_lines.append(f'  <!-- Circular AprilTag {tag_id} (DPI: {dpi}) -->')
+        margin = max(2, int(cell_size * 0.2))
+        radius = (size_pixels - 2 * margin) / 2
+        center = size_pixels / 2
+    else:
+        svg_lines.append(f'  <!-- Rectangular AprilTag {tag_id} (DPI: {dpi}) -->')
+    
+    # Add rectangles for black pixels
+    for i in range(pattern_size):
+        for j in range(pattern_size):
+            if pattern[i, j] == 1:
+                if style == 'circular':
+                    # Check if within circle
+                    cell_center_x = (j + 0.5) * cell_size
+                    cell_center_y = (i + 0.5) * cell_size
+                    dist = np.sqrt((cell_center_x - center)**2 + (cell_center_y - center)**2)
+                    if dist <= radius:
+                        x = int(j * cell_size)
+                        y = int(i * cell_size)
+                        w = int(cell_size)
+                        h = int(cell_size)
+                        svg_lines.append(f'  <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="black"/>')
+                else:
+                    x = int(j * cell_size)
+                    y = int(i * cell_size)
+                    w = int(cell_size)
+                    h = int(cell_size)
+                    svg_lines.append(f'  <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="black"/>')
+    
+    svg_lines.append('</svg>')
+    return '\n'.join(svg_lines)
+
+
 class AprilTagGUI:
-    """GUI for AprilTag Generator"""
+    """GUI interface for AprilTag Generator"""
     
     def __init__(self, root):
         self.root = root
-        self.root.title("AprilTag Generator")
-        self.root.geometry("600x650")
+        self.root.title("AprilTag Generator - Official Tag36h11")
+        self.root.geometry("650x750")
         
         # Configure style
         style = ttk.Style()
         style.theme_use('clam')
         
-        # Create notebook (tabbed interface)
+        # Create tabbed interface
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill='both', expand=True, padx=10, pady=10)
         
@@ -225,211 +324,251 @@ class AprilTagGUI:
         self.setup_array_tab()
     
     def setup_single_tab(self):
-        """Setup the single tag generation tab"""
-        frame = ttk.LabelFrame(self.single_tab, text="Single AprilTag Settings", 
-                              padding=20)
+        """Setup single tag generation tab"""
+        frame = ttk.LabelFrame(self.single_tab, text="Single AprilTag", padding=20)
         frame.pack(fill='both', expand=True, padx=10, pady=10)
         
         # Tag ID
-        ttk.Label(frame, text="Tag ID:").grid(row=0, column=0, sticky='w', pady=5)
-        self.single_id = ttk.Spinbox(frame, from_=0, to=1000, width=20)
+        ttk.Label(frame, text="Tag ID (0-586):").grid(row=0, column=0, sticky='w', pady=5)
+        self.single_id = ttk.Spinbox(frame, from_=0, to=586, width=20)
         self.single_id.set(0)
         self.single_id.grid(row=0, column=1, sticky='ew', pady=5)
         
-        # Tag Size
-        ttk.Label(frame, text="Tag Size (pixels):").grid(row=1, column=0, 
-                                                         sticky='w', pady=5)
-        self.single_size = ttk.Spinbox(frame, from_=100, to=1000, increment=50, 
-                                      width=20)
-        self.single_size.set(400)
-        self.single_size.grid(row=1, column=1, sticky='ew', pady=5)
+        # Size mode selector
+        ttk.Label(frame, text="Size Mode:").grid(row=1, column=0, sticky='w', pady=5)
+        self.single_size_mode = ttk.Combobox(frame, values=['Pixels', 'Physical (cm) + DPI'], 
+                                            state='readonly', width=17)
+        self.single_size_mode.set('Pixels')
+        self.single_size_mode.grid(row=1, column=1, sticky='ew', pady=5)
+        self.single_size_mode.bind('<<ComboboxSelected>>', self._on_single_size_mode_changed)
         
-        # Border
-        ttk.Label(frame, text="Border Width:").grid(row=2, column=0, 
-                                                    sticky='w', pady=5)
-        self.single_border = ttk.Spinbox(frame, from_=0, to=3, width=20)
-        self.single_border.set(1)
-        self.single_border.grid(row=2, column=1, sticky='ew', pady=5)
+        # Pixel size spinbox (shown by default)
+        self.single_size_pixels_label = ttk.Label(frame, text="Size (pixels):")
+        self.single_size_pixels_label.grid(row=2, column=0, sticky='w', pady=5)
+        self.single_size_pixels = ttk.Spinbox(frame, from_=100, to=1000, increment=50, width=20)
+        self.single_size_pixels.set(400)
+        self.single_size_pixels.grid(row=2, column=1, sticky='ew', pady=5)
+        self.single_size_pixels.bind('<KeyRelease>', self._update_single_display)
+        
+        # Physical size spinbox (hidden by default)
+        self.single_size_cm_label = ttk.Label(frame, text="Size (cm):")
+        self.single_size_cm = ttk.Spinbox(frame, from_=1, to=100, width=20)
+        self.single_size_cm.set(10)
+        self.single_size_cm.grid(row=2, column=0, sticky='w', pady=5)
+        self.single_size_cm.grid(row=2, column=1, sticky='ew', pady=5)
+        self.single_size_cm_label.grid_remove()
+        self.single_size_cm.grid_remove()
+        self.single_size_cm.bind('<KeyRelease>', self._update_single_display)
+        
+        # DPI selector (hidden by default)
+        self.single_dpi_label = ttk.Label(frame, text="DPI:")
+        self.single_dpi = ttk.Combobox(frame, values=['72 (Screen)', '96 (Web)', '150 (Photo)', '300 (Print)', '600 (High)'], 
+                                      state='readonly', width=17)
+        self.single_dpi.set('300 (Print)')
+        self.single_dpi.grid(row=3, column=0, sticky='w', pady=5)
+        self.single_dpi.grid(row=3, column=1, sticky='ew', pady=5)
+        self.single_dpi_label.grid_remove()
+        self.single_dpi.grid_remove()
+        self.single_dpi.bind('<<ComboboxSelected>>', self._update_single_display)
+        
+        # Style
+        self.single_style_label = ttk.Label(frame, text="Style:")
+        self.single_style_label.grid(row=3, column=0, sticky='w', pady=5)
+        self.single_style = ttk.Combobox(frame, values=['rectangular', 'circular'], 
+                                        state='readonly', width=17)
+        self.single_style.set('rectangular')
+        self.single_style.grid(row=3, column=1, sticky='ew', pady=5)
+        
+        # Export format
+        self.single_format_label = ttk.Label(frame, text="Export Format:")
+        self.single_format_label.grid(row=4, column=0, sticky='w', pady=5)
+        self.single_format = ttk.Combobox(frame, values=['PNG (Raster)', 'SVG (Vector)'], 
+                                         state='readonly', width=17)
+        self.single_format.set('PNG (Raster)')
+        self.single_format.grid(row=4, column=1, sticky='ew', pady=5)
+        
+        # Real-world size display
+        self.single_size_display_label = ttk.Label(frame, text="Real-world Size:")
+        self.single_size_display_label.grid(row=5, column=0, sticky='w', pady=5)
+        self.single_size_display = ttk.Label(frame, text="400px = 14.11cm (300 DPI)", 
+                                             foreground='blue', font=('TkDefaultFont', 10, 'bold'))
+        self.single_size_display.grid(row=5, column=1, sticky='w', pady=5)
         
         frame.columnconfigure(1, weight=1)
         
-        # Preview and Generate buttons
-        button_frame = ttk.Frame(self.single_tab)
-        button_frame.pack(fill='x', padx=10, pady=10)
+        # Initial display update
+        self._update_single_display()
         
-        ttk.Button(button_frame, text="Preview", 
-                  command=self.preview_single).pack(side='left', padx=5)
-        ttk.Button(button_frame, text="Generate & Save", 
-                  command=self.generate_single).pack(side='left', padx=5)
+        # Buttons
+        btn_frame = ttk.Frame(self.single_tab)
+        btn_frame.pack(fill='x', padx=10, pady=10)
+        ttk.Button(btn_frame, text="Preview", command=self.preview_single).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Generate & Save", command=self.generate_single).pack(side='left', padx=5)
         
-        # Info label
-        info_text = ("AprilTags are fiducial markers used for camera pose estimation.\n"
-                    "Tag ID: Unique identifier for the marker (0-1000)\n"
-                    "Tag Size: Output image size in pixels\n"
-                    "Border: White border around the tag (recommended: 1)")
-        info_label = ttk.Label(self.single_tab, text=info_text, 
-                              justify='left', wraplength=550)
-        info_label.pack(padx=10, pady=10)
+        # Info
+        info = ttk.Label(self.single_tab, text="Generate a single AprilTag marker.\nSupports all 587 official tag36h11 codes.\nExport as PNG (raster) or SVG (scalable vector).", 
+                        justify='left', wraplength=600)
+        info.pack(padx=10, pady=10)
+    
+    def _on_single_size_mode_changed(self, event=None):
+        """Handle size mode change - toggle UI elements and update display"""
+        mode = self.single_size_mode.get()
+        
+        if mode == 'Physical (cm) + DPI':
+            # Switch to physical mode: hide pixels, show cm + DPI
+            self.single_size_pixels_label.grid_remove()
+            self.single_size_pixels.grid_remove()
+            self.single_size_cm_label.grid(row=2, column=0, sticky='w', pady=5)
+            self.single_size_cm.grid(row=2, column=1, sticky='ew', pady=5)
+            self.single_dpi_label.grid(row=3, column=0, sticky='w', pady=5)
+            self.single_dpi.grid(row=3, column=1, sticky='ew', pady=5)
+            
+            # Adjust other rows
+            self.single_style_label.grid(row=4, column=0, sticky='w', pady=5)
+            self.single_style.grid(row=4, column=1, sticky='ew', pady=5)
+            self.single_format_label.grid(row=5, column=0, sticky='w', pady=5)
+            self.single_format.grid(row=5, column=1, sticky='ew', pady=5)
+            self.single_size_display_label.grid(row=6, column=0, sticky='w', pady=5)
+            self.single_size_display.grid(row=6, column=1, sticky='w', pady=5)
+        else:
+            # Switch to pixel mode: show pixels, hide cm + DPI
+            self.single_size_cm_label.grid_remove()
+            self.single_size_cm.grid_remove()
+            self.single_dpi_label.grid_remove()
+            self.single_dpi.grid_remove()
+            self.single_size_pixels_label.grid(row=2, column=0, sticky='w', pady=5)
+            self.single_size_pixels.grid(row=2, column=1, sticky='ew', pady=5)
+            
+            # Adjust other rows back
+            self.single_style_label.grid(row=3, column=0, sticky='w', pady=5)
+            self.single_style.grid(row=3, column=1, sticky='ew', pady=5)
+            self.single_format_label.grid(row=4, column=0, sticky='w', pady=5)
+            self.single_format.grid(row=4, column=1, sticky='ew', pady=5)
+            self.single_size_display_label.grid(row=5, column=0, sticky='w', pady=5)
+            self.single_size_display.grid(row=5, column=1, sticky='w', pady=5)
+        
+        self._update_single_display()
+    
+    def _update_single_display(self, event=None):
+        """Update real-world size display based on current mode and values"""
+        try:
+            mode = self.single_size_mode.get()
+            
+            if mode == 'Physical (cm) + DPI':
+                # Physical mode: show cm, inches, DPI, and calculated export pixels
+                size_cm = float(self.single_size_cm.get())
+                dpi_str = self.single_dpi.get().split()[0]
+                dpi = int(dpi_str)
+                size_px = calculate_pixels_from_physical(size_cm, dpi)
+                inches = size_cm / 2.54
+                self.single_size_display.config(
+                    text=f"{size_cm:.1f}cm × {size_cm:.1f}cm ({inches:.2f}\" × {inches:.2f}\") @ {dpi} DPI = {size_px}px"
+                )
+            else:
+                # Pixel mode: show pixels and convert to cm at 300 DPI reference
+                size_px = int(self.single_size_pixels.get())
+                size_cm = pixels_to_physical(size_px, dpi=300)
+                inches = size_cm / 2.54
+                self.single_size_display.config(
+                    text=f"{size_px}px = {size_cm:.2f}cm × {size_cm:.2f}cm ({inches:.2f}\" × {inches:.2f}\") @ 300 DPI"
+                )
+        except (ValueError, IndexError):
+            pass
+    
     
     def setup_batch_tab(self):
-        """Setup the batch tag generation tab"""
-        frame = ttk.LabelFrame(self.batch_tab, text="Batch Generation Settings", 
-                              padding=20)
+        """Setup batch generation tab"""
+        frame = ttk.LabelFrame(self.batch_tab, text="Batch Generation", padding=20)
         frame.pack(fill='both', expand=True, padx=10, pady=10)
         
-        # Start Tag ID
-        ttk.Label(frame, text="Start Tag ID:").grid(row=0, column=0, sticky='w', pady=5)
-        self.batch_start_id = ttk.Spinbox(frame, from_=0, to=1000, width=20)
-        self.batch_start_id.set(0)
-        self.batch_start_id.grid(row=0, column=1, sticky='ew', pady=5)
+        # Start ID
+        ttk.Label(frame, text="Start ID:").grid(row=0, column=0, sticky='w', pady=5)
+        self.batch_start = ttk.Spinbox(frame, from_=0, to=586, width=20)
+        self.batch_start.set(0)
+        self.batch_start.grid(row=0, column=1, sticky='ew', pady=5)
         
-        # End Tag ID
-        ttk.Label(frame, text="End Tag ID:").grid(row=1, column=0, sticky='w', pady=5)
-        self.batch_end_id = ttk.Spinbox(frame, from_=0, to=1000, width=20)
-        self.batch_end_id.set(9)
-        self.batch_end_id.grid(row=1, column=1, sticky='ew', pady=5)
+        # End ID
+        ttk.Label(frame, text="End ID:").grid(row=1, column=0, sticky='w', pady=5)
+        self.batch_end = ttk.Spinbox(frame, from_=0, to=586, width=20)
+        self.batch_end.set(9)
+        self.batch_end.grid(row=1, column=1, sticky='ew', pady=5)
         
-        # Tag Size
-        ttk.Label(frame, text="Tag Size (pixels):").grid(row=2, column=0, 
-                                                         sticky='w', pady=5)
-        self.batch_size = ttk.Spinbox(frame, from_=100, to=1000, increment=50, 
-                                     width=20)
+        # Size
+        ttk.Label(frame, text="Size (pixels):").grid(row=2, column=0, sticky='w', pady=5)
+        self.batch_size = ttk.Spinbox(frame, from_=100, to=1000, increment=50, width=20)
         self.batch_size.set(400)
         self.batch_size.grid(row=2, column=1, sticky='ew', pady=5)
         
-        # Border
-        ttk.Label(frame, text="Border Width:").grid(row=3, column=0, 
-                                                    sticky='w', pady=5)
-        self.batch_border = ttk.Spinbox(frame, from_=0, to=3, width=20)
-        self.batch_border.set(1)
-        self.batch_border.grid(row=3, column=1, sticky='ew', pady=5)
+        # Style
+        ttk.Label(frame, text="Style:").grid(row=3, column=0, sticky='w', pady=5)
+        self.batch_style = ttk.Combobox(frame, values=['rectangular', 'circular'], 
+                                       state='readonly', width=17)
+        self.batch_style.set('rectangular')
+        self.batch_style.grid(row=3, column=1, sticky='ew', pady=5)
         
-        # Output Directory
-        ttk.Label(frame, text="Output Directory:").grid(row=4, column=0, 
-                                                        sticky='w', pady=5)
+        # Export format
+        ttk.Label(frame, text="Export Format:").grid(row=4, column=0, sticky='w', pady=5)
+        self.batch_format = ttk.Combobox(frame, values=['PNG (Raster)', 'SVG (Vector)'], 
+                                        state='readonly', width=17)
+        self.batch_format.set('PNG (Raster)')
+        self.batch_format.grid(row=4, column=1, sticky='ew', pady=5)
         
+        # Output directory
+        ttk.Label(frame, text="Output Dir:").grid(row=5, column=0, sticky='w', pady=5)
         dir_frame = ttk.Frame(frame)
-        dir_frame.grid(row=4, column=1, sticky='ew', pady=5)
+        dir_frame.grid(row=5, column=1, sticky='ew', pady=5)
+        self.batch_dir = tk.StringVar(value=os.getcwd())
+        ttk.Entry(dir_frame, textvariable=self.batch_dir).pack(side='left', fill='x', expand=True)
+        ttk.Button(dir_frame, text="Browse...", command=self.browse_dir).pack(side='left', padx=(5, 0))
         
-        self.batch_output_dir = tk.StringVar(value=os.getcwd())
-        ttk.Entry(dir_frame, textvariable=self.batch_output_dir).pack(
-            side='left', fill='x', expand=True)
-        ttk.Button(dir_frame, text="Browse...", 
-                  command=self.browse_output_dir).pack(side='left', padx=(5, 0))
+        # Real-world size display
+        ttk.Label(frame, text="Real-world Size:").grid(row=6, column=0, sticky='w', pady=5)
+        self.batch_size_display = ttk.Label(frame, text="400 px per tag", 
+                                            foreground='blue', font=('TkDefaultFont', 10, 'bold'))
+        self.batch_size_display.grid(row=6, column=1, sticky='w', pady=5)
         
         frame.columnconfigure(1, weight=1)
         
-        # Progress bar
+        # Bind event to update size display
+        self.batch_size.bind('<KeyRelease>', self.update_batch_size_display)
+        
+        # Progress
         self.batch_progress = ttk.Progressbar(self.batch_tab, mode='determinate')
         self.batch_progress.pack(fill='x', padx=10, pady=5)
         
-        # Status label
-        self.batch_status = ttk.Label(self.batch_tab, text="Ready to generate tags")
+        self.batch_status = ttk.Label(self.batch_tab, text="Ready")
         self.batch_status.pack(padx=10, pady=5)
         
-        # Generate button
-        button_frame = ttk.Frame(self.batch_tab)
-        button_frame.pack(fill='x', padx=10, pady=10)
+        # Button
+        ttk.Button(self.batch_tab, text="Generate All", command=self.generate_batch).pack(padx=10, pady=5)
         
-        ttk.Button(button_frame, text="Generate All Tags", 
-                  command=self.generate_batch).pack(side='left', padx=5)
-        
-        # Info label
-        info_text = ("Batch generate multiple individual AprilTag files.\n"
-                    "Each tag will be saved as a separate PNG file:\n"
-                    "apriltag_0.png, apriltag_1.png, etc.\n"
-                    "Perfect for creating a complete set of tracking markers.")
-        info_label = ttk.Label(self.batch_tab, text=info_text, 
-                              justify='left', wraplength=550)
-        info_label.pack(padx=10, pady=10)
+        # Info
+        info = ttk.Label(self.batch_tab, text="Generate multiple individual tag files.\nEach saved as apriltag_N.png or apriltag_N.svg", 
+                        justify='left', wraplength=600)
+        info.pack(padx=10, pady=10)
     
-    def browse_output_dir(self):
-        """Browse for output directory"""
-        directory = filedialog.askdirectory(
-            initialdir=self.batch_output_dir.get(),
-            title="Select Output Directory"
-        )
-        if directory:
-            self.batch_output_dir.set(directory)
-    
-    def generate_batch(self):
-        """Generate batch of single tags"""
+    def update_batch_size_display(self, event=None):
+        """Update batch size display"""
         try:
-            start_id = int(self.batch_start_id.get())
-            end_id = int(self.batch_end_id.get())
-            size = int(self.batch_size.get())
-            border = int(self.batch_border.get())
-            output_dir = self.batch_output_dir.get()
-            
-            # Validate inputs
-            if start_id > end_id:
-                messagebox.showerror("Error", "Start ID must be less than or equal to End ID")
-                return
-            
-            if not os.path.exists(output_dir):
-                messagebox.showerror("Error", "Output directory does not exist")
-                return
-            
-            # Calculate total tags
-            total_tags = end_id - start_id + 1
-            
-            # Confirm with user
-            if total_tags > 50:
-                confirm = messagebox.askyesno(
-                    "Confirm Batch Generation",
-                    f"Generate {total_tags} tag files?\n"
-                    f"This may take a moment."
-                )
-                if not confirm:
-                    return
-            
-            # Setup progress bar
-            self.batch_progress['maximum'] = total_tags
-            self.batch_progress['value'] = 0
-            
-            # Generate tags
-            for i, tag_id in enumerate(range(start_id, end_id + 1)):
-                # Update status
-                self.batch_status.config(
-                    text=f"Generating tag {tag_id} ({i+1}/{total_tags})..."
-                )
-                self.root.update()
-                
-                # Generate tag
-                img = AprilTagGenerator.generate_tag(tag_id, size, border)
-                
-                # Save tag
-                filename = os.path.join(output_dir, f"apriltag_{tag_id}.png")
-                img.save(filename)
-                
-                # Update progress
-                self.batch_progress['value'] = i + 1
-                self.root.update()
-            
-            # Complete
-            self.batch_status.config(text=f"Successfully generated {total_tags} tags!")
-            messagebox.showinfo(
-                "Success",
-                f"Generated {total_tags} AprilTag files in:\n{output_dir}"
+            size_px = int(self.batch_size.get())
+            size_cm = pixels_to_physical(size_px, dpi=72)
+            inches = size_cm / 2.54
+            self.batch_size_display.config(
+                text=f"{size_px}px per tag = {size_cm:.2f} cm × {size_cm:.2f} cm ({inches:.2f}\" × {inches:.2f}\") @ 72 DPI"
             )
-            
-        except Exception as e:
-            self.batch_status.config(text="Error occurred")
-            messagebox.showerror("Error", f"Failed to generate batch: {str(e)}")
-
+        except ValueError:
+            pass
     
     def setup_array_tab(self):
-        """Setup the tag array generation tab"""
-        frame = ttk.LabelFrame(self.array_tab, text="Tag Array Settings", 
-                              padding=20)
+        """Setup array generation tab"""
+        frame = ttk.LabelFrame(self.array_tab, text="Tag Array", padding=20)
         frame.pack(fill='both', expand=True, padx=10, pady=10)
         
-        # Starting Tag ID
-        ttk.Label(frame, text="Starting Tag ID:").grid(row=0, column=0, 
-                                                       sticky='w', pady=5)
-        self.array_start_id = ttk.Spinbox(frame, from_=0, to=1000, width=20)
-        self.array_start_id.set(0)
-        self.array_start_id.grid(row=0, column=1, sticky='ew', pady=5)
+        # Start ID
+        ttk.Label(frame, text="Start ID:").grid(row=0, column=0, sticky='w', pady=5)
+        self.array_start = ttk.Spinbox(frame, from_=0, to=586, width=20)
+        self.array_start.set(0)
+        self.array_start.grid(row=0, column=1, sticky='ew', pady=5)
         
         # Rows
         ttk.Label(frame, text="Rows:").grid(row=1, column=0, sticky='w', pady=5)
@@ -444,144 +583,297 @@ class AprilTagGUI:
         self.array_cols.grid(row=2, column=1, sticky='ew', pady=5)
         
         # Tag Size
-        ttk.Label(frame, text="Tag Size (pixels):").grid(row=3, column=0, 
-                                                         sticky='w', pady=5)
-        self.array_size = ttk.Spinbox(frame, from_=50, to=500, increment=25, 
-                                     width=20)
+        ttk.Label(frame, text="Tag Size (pixels):").grid(row=3, column=0, sticky='w', pady=5)
+        self.array_size = ttk.Spinbox(frame, from_=50, to=500, increment=25, width=20)
         self.array_size.set(200)
         self.array_size.grid(row=3, column=1, sticky='ew', pady=5)
         
         # Spacing
-        ttk.Label(frame, text="Spacing (pixels):").grid(row=4, column=0, 
-                                                        sticky='w', pady=5)
-        self.array_spacing = ttk.Spinbox(frame, from_=0, to=200, increment=10, 
-                                        width=20)
+        ttk.Label(frame, text="Spacing (pixels):").grid(row=4, column=0, sticky='w', pady=5)
+        self.array_spacing = ttk.Spinbox(frame, from_=0, to=200, increment=10, width=20)
         self.array_spacing.set(50)
         self.array_spacing.grid(row=4, column=1, sticky='ew', pady=5)
         
-        # Border
-        ttk.Label(frame, text="Border Width:").grid(row=5, column=0, 
-                                                    sticky='w', pady=5)
-        self.array_border = ttk.Spinbox(frame, from_=0, to=3, width=20)
-        self.array_border.set(1)
-        self.array_border.grid(row=5, column=1, sticky='ew', pady=5)
+        # Style
+        ttk.Label(frame, text="Style:").grid(row=5, column=0, sticky='w', pady=5)
+        self.array_style = ttk.Combobox(frame, values=['rectangular', 'circular'], 
+                                       state='readonly', width=17)
+        self.array_style.set('rectangular')
+        self.array_style.grid(row=5, column=1, sticky='ew', pady=5)
         
-        # Add Labels checkbox
+        # Export format
+        ttk.Label(frame, text="Export Format:").grid(row=6, column=0, sticky='w', pady=5)
+        self.array_format = ttk.Combobox(frame, values=['PNG (Raster)', 'SVG (Vector)'], 
+                                        state='readonly', width=17)
+        self.array_format.set('PNG (Raster)')
+        self.array_format.grid(row=6, column=1, sticky='ew', pady=5)
+        
+        # Labels checkbox
         self.array_labels = tk.BooleanVar(value=True)
-        ttk.Checkbutton(frame, text="Add ID Labels", 
-                       variable=self.array_labels).grid(row=6, column=0, 
-                                                        columnspan=2, pady=5)
+        ttk.Checkbutton(frame, text="Add ID Labels", variable=self.array_labels).grid(row=7, column=0, columnspan=2)
+        
+        # Real-world size display
+        ttk.Label(frame, text="Dimensions:").grid(row=8, column=0, sticky='w', pady=5)
+        self.array_size_display = ttk.Label(frame, text="200×200 px grid", 
+                                            foreground='blue', font=('TkDefaultFont', 10, 'bold'))
+        self.array_size_display.grid(row=8, column=1, sticky='w', pady=5)
         
         frame.columnconfigure(1, weight=1)
         
-        # Preview and Generate buttons
-        button_frame = ttk.Frame(self.array_tab)
-        button_frame.pack(fill='x', padx=10, pady=10)
+        # Bind event to update size display
+        self.array_size.bind('<KeyRelease>', self.update_array_size_display)
+        self.array_rows.bind('<KeyRelease>', self.update_array_size_display)
+        self.array_cols.bind('<KeyRelease>', self.update_array_size_display)
+        self.array_spacing.bind('<KeyRelease>', self.update_array_size_display)
         
-        ttk.Button(button_frame, text="Preview", 
-                  command=self.preview_array).pack(side='left', padx=5)
-        ttk.Button(button_frame, text="Generate & Save", 
-                  command=self.generate_array).pack(side='left', padx=5)
+        # Buttons
+        btn_frame = ttk.Frame(self.array_tab)
+        btn_frame.pack(fill='x', padx=10, pady=10)
+        ttk.Button(btn_frame, text="Preview", command=self.preview_array).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Generate & Save", command=self.generate_array).pack(side='left', padx=5)
         
-        # Info label
-        info_text = ("Generate a grid/array of AprilTags.\n"
-                    "Perfect for creating calibration boards or tracking patterns.\n"
-                    "Tags will be numbered sequentially from the starting ID.")
-        info_label = ttk.Label(self.array_tab, text=info_text, 
-                              justify='left', wraplength=550)
-        info_label.pack(padx=10, pady=10)
+        # Info
+        info = ttk.Label(self.array_tab, text="Generate a grid of AprilTags.\nPerfect for calibration boards. Currently PNG array export only.", 
+                        justify='left', wraplength=600)
+        info.pack(padx=10, pady=10)
+    
+    def browse_dir(self):
+        """Browse for output directory"""
+        d = filedialog.askdirectory(initialdir=self.batch_dir.get())
+        if d:
+            self.batch_dir.set(d)
+    
+    def update_array_size_display(self, event=None):
+        """Update array size display"""
+        try:
+            size_px = int(self.array_size.get())
+            size_cm = pixels_to_physical(size_px, dpi=72)
+            rows = int(self.array_rows.get())
+            cols = int(self.array_cols.get())
+            spacing = int(self.array_spacing.get())
+            total_w = cols * (size_px + spacing) - spacing
+            total_h = rows * (size_px + spacing) - spacing
+            total_w_cm = pixels_to_physical(total_w, dpi=72)
+            total_h_cm = pixels_to_physical(total_h, dpi=72)
+            self.array_size_display.config(
+                text=f"{size_px}px/tag = {size_cm:.1f}cm | Grid: {total_w_cm:.1f}cm × {total_h_cm:.1f}cm ({rows}×{cols})"
+            )
+        except (ValueError, IndexError):
+            pass
     
     def preview_single(self):
-        """Preview single tag"""
         try:
             tag_id = int(self.single_id.get())
-            size = int(self.single_size.get())
-            border = int(self.single_border.get())
+            style = self.single_style.get()
+            format_type = self.single_format.get()
             
-            img = AprilTagGenerator.generate_tag(tag_id, size, border)
-            img.show()
+            # Calculate size
+            if self.single_size_mode.get() == 'Physical (cm) + DPI':
+                size_cm = float(self.single_size_cm.get())
+                dpi_str = self.single_dpi.get().split()[0]
+                dpi = int(dpi_str)
+                size_pixels = calculate_pixels_from_physical(size_cm, dpi)
+            else:
+                size_pixels = int(self.single_size_pixels.get())
             
+            if format_type == 'PNG (Raster)':
+                img = AprilTagGenerator.generate_tag(tag_id, size_pixels, style)
+                img.show()
+            else:  # SVG
+                svg_content = generate_svg_tag(tag_id, size_cm if self.single_size_mode.get() == 'Physical (cm) + DPI' else size_pixels / 2.54, 
+                                              int(self.single_dpi.get().split()[0]) if self.single_size_mode.get() == 'Physical (cm) + DPI' else 72,
+                                              style)
+                messagebox.showinfo("SVG Preview", "SVG format cannot be displayed. Generate and save to file to preview in an SVG viewer.")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to preview tag: {str(e)}")
+            messagebox.showerror("Error", str(e))
     
     def generate_single(self):
-        """Generate and save single tag"""
         try:
             tag_id = int(self.single_id.get())
-            size = int(self.single_size.get())
-            border = int(self.single_border.get())
+            style = self.single_style.get()
+            format_type = self.single_format.get()
             
-            # Ask for save location
-            filename = filedialog.asksaveasfilename(
-                defaultextension=".png",
-                initialfile=f"apriltag_{tag_id}.png",
-                filetypes=[("PNG files", "*.png"), ("All files", "*.*")]
-            )
+            # Calculate size
+            if self.single_size_mode.get() == 'Physical (cm) + DPI':
+                size_cm = float(self.single_size_cm.get())
+                dpi_str = self.single_dpi.get().split()[0]
+                dpi = int(dpi_str)
+                size_pixels = calculate_pixels_from_physical(size_cm, dpi)
+            else:
+                size_cm = None
+                size_pixels = int(self.single_size_pixels.get())
+                dpi = 72
             
-            if filename:
-                img = AprilTagGenerator.generate_tag(tag_id, size, border)
-                img.save(filename)
-                messagebox.showinfo("Success", 
-                                   f"Tag {tag_id} saved to:\n{filename}")
-        
+            if format_type == 'PNG (Raster)':
+                f = filedialog.asksaveasfilename(defaultextension=".png", 
+                                               initialfile=f"apriltag_{tag_id}.png",
+                                               filetypes=[("PNG files", "*.png"), ("All files", "*.*")])
+                if f:
+                    img = AprilTagGenerator.generate_tag(tag_id, size_pixels, style)
+                    img.save(f)
+                    # Calculate display size
+                    if size_cm is None:
+                        size_cm = pixels_to_physical(size_pixels, 72)
+                    inches = size_cm / 2.54
+                    messagebox.showinfo("Success", f"Saved to:\n{f}\n\nTag Size: {size_cm:.2f}cm × {size_cm:.2f}cm\n({inches:.2f}\" × {inches:.2f}\")  @ {dpi} DPI\n\nPrint to scale for correct dimensions.")
+            else:  # SVG
+                f = filedialog.asksaveasfilename(defaultextension=".svg",
+                                               initialfile=f"apriltag_{tag_id}.svg",
+                                               filetypes=[("SVG files", "*.svg"), ("All files", "*.*")])
+                if f:
+                    if size_cm is None:
+                        size_cm = size_pixels / 2.54 / 72  # Convert pixels to cm at 72 DPI
+                    svg_content = generate_svg_tag(tag_id, size_cm, dpi, style)
+                    # Add DPI info to SVG as comment
+                    svg_with_info = f"<!-- Generated at {dpi} DPI - Print to scale for {size_cm:.2f}cm × {size_cm:.2f}cm tag -->\n" + svg_content
+                    with open(f, 'w') as svg_file:
+                        svg_file.write(svg_with_info)
+                    inches = size_cm / 2.54
+                    messagebox.showinfo("Success", f"Saved to:\n{f}\n\nTag Size: {size_cm:.2f}cm × {size_cm:.2f}cm\n({inches:.2f}\" × {inches:.2f}\") @ {dpi} DPI\n\nPrint to scale for correct dimensions.")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to generate tag: {str(e)}")
+            messagebox.showerror("Error", str(e))
+    
+    def generate_batch(self):
+        try:
+            start = int(self.batch_start.get())
+            end = int(self.batch_end.get())
+            size = int(self.batch_size.get())
+            style = self.batch_style.get()
+            format_type = self.batch_format.get()
+            out_dir = self.batch_dir.get()
+            
+            if start > end:
+                messagebox.showerror("Error", "Start ID > End ID")
+                return
+            if not os.path.exists(out_dir):
+                messagebox.showerror("Error", "Output directory not found")
+                return
+            
+            total = end - start + 1
+            self.batch_progress['maximum'] = total
+            self.batch_progress['value'] = 0
+            
+            ext = '.svg' if 'SVG' in format_type else '.png'
+            size_cm = pixels_to_physical(size, 72)
+            
+            for i, tag_id in enumerate(range(start, end + 1)):
+                self.batch_status.config(text=f"Generating {i+1}/{total}")
+                self.root.update()
+                
+                if format_type == 'PNG (Raster)':
+                    img = AprilTagGenerator.generate_tag(tag_id, size, style)
+                    img.save(os.path.join(out_dir, f"apriltag_{tag_id}.png"))
+                else:  # SVG
+                    size_cm_svg = size / 2.54 / 72
+                    svg_content = generate_svg_tag(tag_id, size_cm_svg, 72, style)
+                    # Add DPI info to SVG
+                    svg_with_info = f"<!-- {size_cm_svg:.2f}cm @ 72 DPI -->\n" + svg_content
+                    with open(os.path.join(out_dir, f"apriltag_{tag_id}.svg"), 'w') as f:
+                        f.write(svg_with_info)
+                
+                self.batch_progress['value'] = i + 1
+            
+            self.batch_status.config(text=f"Complete: {total} tags")
+            inches = size_cm / 2.54
+            messagebox.showinfo("Success", f"Generated {total} tags ({format_type})\n\nTag Size: {size_cm:.2f}cm × {size_cm:.2f}cm ({inches:.2f}\" × {inches:.2f}\") each\n\nFiles are ready to print to scale.")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
     
     def preview_array(self):
-        """Preview tag array"""
         try:
-            start_id = int(self.array_start_id.get())
+            start = int(self.array_start.get())
             rows = int(self.array_rows.get())
             cols = int(self.array_cols.get())
             size = int(self.array_size.get())
             spacing = int(self.array_spacing.get())
-            border = int(self.array_border.get())
+            style = self.array_style.get()
             labels = self.array_labels.get()
             
-            img = AprilTagGenerator.generate_tag_array(
-                start_id, rows, cols, size, spacing, border, labels
-            )
+            img = AprilTagGenerator.generate_tag_array(start, rows, cols, size, 
+                                                      spacing, style, labels)
             img.show()
-            
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to preview array: {str(e)}")
+            messagebox.showerror("Error", str(e))
     
     def generate_array(self):
-        """Generate and save tag array"""
         try:
-            start_id = int(self.array_start_id.get())
+            start = int(self.array_start.get())
             rows = int(self.array_rows.get())
             cols = int(self.array_cols.get())
             size = int(self.array_size.get())
             spacing = int(self.array_spacing.get())
-            border = int(self.array_border.get())
+            style = self.array_style.get()
             labels = self.array_labels.get()
+            format_type = self.array_format.get()
             
-            # Ask for save location
-            filename = filedialog.asksaveasfilename(
-                defaultextension=".png",
-                initialfile=f"apriltag_array_{rows}x{cols}.png",
-                filetypes=[("PNG files", "*.png"), ("All files", "*.*")]
-            )
-            
-            if filename:
-                img = AprilTagGenerator.generate_tag_array(
-                    start_id, rows, cols, size, spacing, border, labels
-                )
-                img.save(filename)
-                messagebox.showinfo("Success", 
-                                   f"Tag array ({rows}x{cols}) saved to:\n{filename}")
-        
+            f = filedialog.asksaveasfilename(defaultextension=".png" if 'PNG' in format_type else ".svg",
+                                           initialfile=f"apriltag_array_{rows}x{cols}.png" if 'PNG' in format_type else f"apriltag_array_{rows}x{cols}.svg",
+                                           filetypes=[("PNG files", "*.png"), ("SVG files", "*.svg"), ("All files", "*.*")])
+            if f:
+                if format_type == 'PNG (Raster)':
+                    img = AprilTagGenerator.generate_tag_array(start, rows, cols, size,
+                                                              spacing, style, labels)
+                    img.save(f)
+                else:  # SVG - Note: Array SVG export is created by combining individual SVGs
+                    # For SVG arrays, we create a composite SVG with all tags
+                    tag_ids = list(range(start, start + rows * cols))
+                    
+                    # Calculate dimensions
+                    total_width = cols * (size + spacing) - spacing
+                    total_height = rows * (size + spacing) - spacing
+                    
+                    svg_lines = [
+                        f'<svg width="{total_width}px" height="{total_height}px" viewBox="0 0 {total_width} {total_height}" xmlns="http://www.w3.org/2000/svg">',
+                        f'  <rect width="{total_width}" height="{total_height}" fill="white"/>'
+                    ]
+                    
+                    # Add each tag
+                    idx = 0
+                    for row in range(rows):
+                        for col in range(cols):
+                            if idx < len(tag_ids) and tag_ids[idx] <= 586:
+                                x = col * (size + spacing)
+                                y = row * (size + spacing)
+                                
+                                # Get pattern for this tag
+                                from tag36h11_complete import Tag36h11
+                                pattern = Tag36h11.generate_tag_pattern(tag_ids[idx])
+                                
+                                # Add tag as group
+                                svg_lines.append(f'  <g transform="translate({x}, {y})">')
+                                svg_lines.append(f'    <rect width="{size}" height="{size}" fill="white"/>')
+                                
+                                # Add pixels
+                                pattern_size = pattern.shape[0]
+                                cell_size = size / pattern_size
+                                
+                                for i in range(pattern_size):
+                                    for j in range(pattern_size):
+                                        if pattern[i, j] == 1:
+                                            px = int(j * cell_size)
+                                            py = int(i * cell_size)
+                                            pw = int(cell_size)
+                                            ph = int(cell_size)
+                                            svg_lines.append(f'    <rect x="{px}" y="{py}" width="{pw}" height="{ph}" fill="black"/>')
+                                
+                                svg_lines.append(f'  </g>')
+                            idx += 1
+                    
+                    svg_lines.append('</svg>')
+                    
+                    with open(f, 'w') as svg_file:
+                        svg_file.write('\n'.join(svg_lines))
+                
+                messagebox.showinfo("Success", f"Saved to:\n{f}")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to generate array: {str(e)}")
+            messagebox.showerror("Error", str(e))
 
 
 def main():
-    """Main entry point"""
     root = tk.Tk()
     app = AprilTagGUI(root)
     root.mainloop()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
