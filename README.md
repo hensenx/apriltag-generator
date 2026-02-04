@@ -1,6 +1,6 @@
 # AprilTag Generator
 
-A professional Python GUI application for generating AprilTag fiducial markers with DPI support and real-world sizing. **Uses official AprilRobotics patterns for 100% detector compatibility.**
+A Python GUI application for generating AprilTag fiducial markers with DPI support and real-world sizing. **Uses official AprilRobotics patterns for 100% detector compatibility.**
 
 ![Examples](examples/rectangular_tag.png) ![Examples](examples/circular_tag.png)
 
