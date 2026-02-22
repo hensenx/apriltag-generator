@@ -19,7 +19,7 @@ from apriltag_generator import AprilTagGenerator
 
 
 class AprilTagGeneratorTests(unittest.TestCase):
-    def test_generate_tag_keeps_requested_size_for_non_divisible_sizes(self):
+    def test_generate_tag_honors_non_divisible_dimensions(self):
         img = AprilTagGenerator.generate_tag(0, size=123, style='rectangular')
         self.assertEqual(img.size, (123, 123))
 
