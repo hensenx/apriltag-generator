@@ -53,6 +53,9 @@ class AprilTagGenerator:
                     y1 = y0 + cell_size
                     draw.rectangle([x0, y0, x1, y1], fill=0)
         
+        if img_size != size:
+            img = img.resize((size, size), Image.NEAREST)
+        
         return img
     
     @staticmethod
@@ -106,7 +109,7 @@ class AprilTagGenerator:
         
         Args:
             tag_id: ID of the tag to generate (0-586)
-            size: Size of the tag in pixels
+            size: Size of the full tag in pixels (includes white border)
             style: 'rectangular' or 'circular'
             circle_x: X coordinate for circular mask (alternative parameter)
             
