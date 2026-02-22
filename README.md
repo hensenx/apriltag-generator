@@ -23,13 +23,15 @@ AprilTags are 2D barcode-like markers designed for robust detection in computer 
 - **Two Rendering Styles**: Rectangular and circular tag options
 
 ### Professional Sizing & Export
-- **Real-World Sizing**: Specify physical dimensions (cm) with DPI for accurate printing
+- **Real-World Sizing**: Specify physical dimensions (cm) measured on the tag body (excluding outer white border)
 - **Two Size Modes**:
-  - **Pixels Mode**: Direct pixel dimensions with 300 DPI reference
-  - **Physical Mode**: Enter size in cm + DPI → calculates export pixels automatically
-- **Dual Format Export**:
+  - **Pixels Mode**: Direct tag-body pixel dimensions (excluding outer white border) with 300 DPI reference
+  - **Physical Mode**: Enter tag-body size in cm + DPI → calculates export pixels automatically
+  - **Border Semantics**: Export keeps the full white border, outside the requested size
+- **Multi-Format Export**:
   - **SVG**: Scalable vector graphics (infinitely scalable, ~3-4 KB)
   - **PNG**: Raster images with embedded DPI metadata for print-to-scale
+  - **PDF**: True vector PDF output for print workflows and consistent physical sizing
 - **DPI Presets**: 72, 96, 150, 300, 600 DPI for different use cases
 - **Live Preview**: See real-world dimensions (cm, inches, pixels) before exporting
 
@@ -84,9 +86,9 @@ Standard calibration board layout. Tags 0-11 with ID labels.
 - Accurate pose estimation
 
 ### Customizable Settings
-- **Tag Size**: Pixels or physical dimensions (centimeters) + DPI
+- **Tag Size**: Pixels or physical dimensions (centimeters) measured without the outer white border
 - **Rendering Style**: Rectangular or circular
-- **Export Format**: PNG (raster) or SVG (vector)
+- **Export Format**: PNG (raster), SVG (vector), or PDF (print)
 - **Array Dimensions**: Rows × columns for calibration boards
 - **Spacing & Labels**: Adjustable spacing and optional ID labels
 - **Output Directory**: Choose where to save files
@@ -108,7 +110,7 @@ pip install -r requirements.txt
 
 Or manually:
 ```bash
-pip install numpy pillow
+pip install numpy pillow reportlab
 ```
 
 ## Quick Start
@@ -135,9 +137,9 @@ python apriltag_generator.py
 
 1. **Choose Tab**: Single Tag, Batch, or Array
 2. **Set Size Mode**:
-   - **Pixels**: Direct pixel size (shows cm @ 300 DPI reference)
-   - **Physical (cm) + DPI**: Enter real-world size → auto-calculates pixels
-3. **Select Format**: PNG (raster) or SVG (vector)
+  - **Pixels**: Direct tag-body pixel size (shows cm @ 300 DPI reference)
+  - **Physical (cm) + DPI**: Enter real-world tag-body size → auto-calculates pixels
+3. **Select Format**: PNG (raster), SVG (vector), or PDF (print)
 4. **Generate**: Click "Generate & Save" or "Generate All"
 
 ### Real-World Size Display
@@ -146,7 +148,7 @@ The GUI shows live calculations:
 - **Pixels Mode**: `400px = 14.11cm × 14.11cm (5.56" × 5.56") @ 300 DPI`
 - **Physical Mode**: `10cm × 10cm (3.94" × 3.94") @ 300 DPI = 1181px`
 
-This ensures you know exactly what physical size you'll get when printing!
+Requested size excludes the white border; exported files preserve the full white border outside that requested size.
 
 ## Command-Line Usage (Advanced)
 
@@ -200,6 +202,7 @@ array.save('calibration_board.png')
 |--------|------|----------|-----------|
 | PNG | Raster | Web, quick preview | Large |
 | SVG | Vector | Professional print, scaling | Small (3-4 KB) |
+| PDF | Vector Document | Print workflows, fixed physical size | Medium |
 
 ## DPI Reference
 
@@ -213,8 +216,9 @@ array.save('calibration_board.png')
 
 ## Size Examples (10cm at 300 DPI)
 
-- Physical: 10 cm × 10 cm
-- Resolution: 1181 × 1181 pixels
+- Requested tag body: 10 cm × 10 cm
+- Full exported tag (with white border): 12.5 cm × 12.5 cm
+- Full export resolution (with border): 1476 × 1476 pixels
 - SVG: 3.7 KB
 - PNG: 89 KB
 
@@ -223,7 +227,7 @@ array.save('calibration_board.png')
 ### Single Tag Tab
 - Generate individual tags with flexible sizing
 - Choose between pixel or physical (cm + DPI) sizing
-- Export as PNG or SVG
+- Export as PNG, SVG, or PDF
 
 ### Batch Tab
 - Generate multiple tags (tag range)
@@ -234,7 +238,7 @@ array.save('calibration_board.png')
 - Create grid layouts for calibration
 - Multiple tags in single file
 - Adjustable spacing and labels
-- Export as PNG composite or SVG composite
+- Export as PNG, SVG, or PDF composite
 
 ## Example Workflows
 
@@ -245,14 +249,14 @@ Perfect for camera calibration with known physical size.
 ```
 Single Tag Tab
 ├─ Size Mode: Physical (cm) + DPI
-├─ Size: 10 cm
+├─ Size: 10 cm (no white border)
 ├─ DPI: 300 (Print)
 ├─ Style: Rectangular
 ├─ Format: SVG (Vector)
 └─ Click "Generate & Save"
 ```
 
-**Result**: 10cm × 10cm tag, print-to-scale ready (no scaling in print dialog!)
+**Result**: 10cm × 10cm requested tag body; exported tag includes full white border outside that size.
 
 ### 2. Quick Web Batch
 
@@ -262,7 +266,7 @@ Generate 100 tags for web use.
 Batch Tab
 ├─ Start ID: 0
 ├─ End ID: 99
-├─ Size: 300 pixels
+├─ Size: 300 pixels (no white border)
 ├─ Style: Rectangular
 ├─ Format: PNG (Raster)
 └─ Click "Generate All"
@@ -279,7 +283,7 @@ Array Tab
 ├─ Start ID: 0
 ├─ Rows: 5
 ├─ Columns: 5
-├─ Tag Size: 150 pixels
+├─ Tag Size: 150 pixels (no white border)
 ├─ Spacing: 30 pixels
 ├─ Style: Rectangular
 ├─ Format: PNG
@@ -295,7 +299,7 @@ Create a board with known physical spacing.
 ```
 Array Tab
 ├─ Size Mode: Physical (cm) + DPI
-├─ Tag Size: 5 cm
+├─ Tag Size: 5 cm (no white border)
 ├─ DPI: 300
 ├─ Rows: 4
 ├─ Columns: 6
@@ -335,7 +339,7 @@ Generated tags are tested and verified to work with:
 
 ### Batch Generate Tab
 1. Enter the starting and ending Tag IDs
-2. Set the tag size and border width
+2. Set the requested tag size (excluding white border)
 3. Choose the output directory
 4. Click "Generate All Tags" to create all files at once
 5. Progress bar shows generation status
@@ -346,7 +350,7 @@ Generated tags are tested and verified to work with:
 3. Configure tag size and spacing
 4. Choose whether to include ID labels
 5. Click "Preview" to view the array
-6. Click "Generate & Save" to export as PNG
+6. Click "Generate & Save" to export as PNG, SVG, or PDF
 
 ## Use Cases
 
@@ -359,7 +363,7 @@ Generated tags are tested and verified to work with:
 ## Tips
 
 - **Pattern Accuracy**: All tags use official AprilRobotics patterns - guaranteed detection
-- **Border Width**: Use at least 1 border unit for reliable detection
+- **White Border**: Automatically preserved for reliable detection and not included in requested size
 - **Printing**: Print on white paper with good contrast for best results
 - **Lighting**: Ensure tags are flat and well-lit for detection
 - **Distance**: Larger tags are easier to detect from farther distances
@@ -368,8 +372,9 @@ Generated tags are tested and verified to work with:
 
 ## File Output
 
-- **Single tags**: `apriltag_{ID}.png` or `apriltag_{ID}.svg`
+- **Single tags**: `apriltag_{ID}.png`, `apriltag_{ID}.svg`, or `apriltag_{ID}.pdf`
 - **Batch tags**: Multiple individual files (one per tag)
-- **Arrays**: `apriltag_array_{rows}x{cols}.png` or `.svg`
+- **Arrays**: `apriltag_array_{rows}x{cols}.png`, `.svg`, or `.pdf`
 - **SVG**: Scalable vector graphics (~3-4 KB each)
 - **PNG**: High-quality raster images with embedded DPI metadata
+- **PDF**: True vector format for consistent print output across viewers
